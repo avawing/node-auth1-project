@@ -1,7 +1,7 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const session = require('express-session')
-const db = require('./knexconfig')
+const users = require('./dbhelper')
 
 const server = express()
 server.use(express.json())
@@ -20,19 +20,13 @@ server.use(
     })
 )
 server.post('/api/login', (req, res) => {
-    let { username, password } = req.body;
     const credentials = req.body;
-
-// find the user in the database by it's username then
-if (!user || !bcrypt.compareSync(credentials.password, user.password)) {
-  return res.status(401).json({ error: 'Incorrect credentials' });
-}
   
-    users.findBy({ username })
+    users.findBy(credentials.username)
       .first()
       .then(user => {
         // check that passwords match
-        if (user && bcrypt.compareSync(password, user.password)) {
+        if (user && bcrypt.compareSync(credentials.password, user.password)) {
           res.status(200).json({ message: `Welcome ${user.username}!` });
         } else {
           // we will return 401 if the password or username are invalid
@@ -49,12 +43,30 @@ if (!user || !bcrypt.compareSync(credentials.password, user.password)) {
       const credentials = req.body;
       const hash = bcrypt.hashSync(credentials.password, 14);
       credentials.password = hash;
+
+      users.register(credentials)
+      .then(user => {
+        if(user.length){
+          res.status(201).json(user).end()
+        }else{
+          res.status(500).json({message: "Could not be added."}).end()
+        }
+      })
+      .catch(err => {
+        res.status(500).json({message: "Something went fucky"}).end()
+      })
   })
 
   server.get('/api/users', protected, (req, res) => {
-    db('users') 
-      .then(users => res.json(users))
-      .catch(err => res.json(err));
+    users.get()
+      .then(users => {
+        if(users.length){
+          res.status(200).json(users)}
+          else{
+            res.status(404).json({message: "No users to be found!"})
+          }
+        })
+      .catch(err => res.status(500).json({message: err}));
   });
   
 server.get('/api/logout', (req, res) =>{
